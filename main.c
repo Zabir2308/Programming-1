@@ -31,23 +31,24 @@ long double factorial(long double n) {
 // Helper function to trim whitespace from both ends of a string
 void trim_whitespace(char *str) {
     char *end;
+    char *start = str;
     
     // Trim leading space
-    while(isspace((unsigned char)*str)) str++;
+    while(isspace((unsigned char)*start)) start++;
     
-    if(*str == 0) {
+    if(*start == 0) {
         str[0] = '\0';
         return;
     }
     
     // Trim trailing space
-    end = str + strlen(str) - 1;
-    while(end > str && isspace((unsigned char)*end)) end--;
+    end = start + strlen(start) - 1;
+    while(end > start && isspace((unsigned char)*end)) end--;
     
     end[1] = '\0';
     
     // Move trimmed string to beginning
-    memmove(str - (str - str), str, strlen(str) + 1);
+    memmove(str, start, strlen(start) + 1);
 }
 
 // Check if string ends with '/' (ignoring whitespace)
@@ -107,11 +108,34 @@ void show_history() {
     if (file == NULL) {
         printf("No history available yet.\n\n");
     } else {
-        char lines[1000][300]; // Store up to 1000 lines
+        // Dynamically allocate array of string pointers
+        char **lines = (char **)malloc(1000 * sizeof(char *));
+        if (lines == NULL) {
+            printf("Memory allocation error.\n");
+            fclose(file);
+            return;
+        }
+        
         int count = 0;
         
         // Read all lines
-        while (fgets(lines[count], sizeof(lines[count]), file) != NULL && count < 1000) {
+        while (count < 1000) {
+            lines[count] = (char *)malloc(300 * sizeof(char));
+            if (lines[count] == NULL) {
+                printf("Memory allocation error.\n");
+                // Free already allocated lines
+                for (int i = 0; i < count; i++) {
+                    free(lines[i]);
+                }
+                free(lines);
+                fclose(file);
+                return;
+            }
+            
+            if (fgets(lines[count], 300, file) == NULL) {
+                free(lines[count]);
+                break;
+            }
             count++;
         }
         fclose(file);
@@ -126,6 +150,12 @@ void show_history() {
             }
             printf("\n");
         }
+        
+        // Free all allocated lines
+        for (int i = 0; i < count; i++) {
+            free(lines[i]);
+        }
+        free(lines);
     }
     
     // Wait for user to return
@@ -133,8 +163,14 @@ void show_history() {
         printf("1. Return\n");
         printf("Enter your choice: ");
         
-        char choice[10];
-        if (fgets(choice, sizeof(choice), stdin) == NULL) {
+        char *choice = (char *)malloc(10 * sizeof(char));
+        if (choice == NULL) {
+            printf("Memory allocation error.\n");
+            return;
+        }
+        
+        if (fgets(choice, 10, stdin) == NULL) {
+            free(choice);
             continue;
         }
         
@@ -142,10 +178,13 @@ void show_history() {
         trim_whitespace(choice);
         
         if (strcmp(choice, "1") == 0) {
+            free(choice);
             break;
         } else {
             printf("Invalid choice. Please try again.\n\n");
         }
+        
+        free(choice);
     }
 }
 
@@ -242,9 +281,18 @@ void calculation_mode() {
     printf("Type \"exit\" to return to selection mode\n\n");
     
     while (1) {
-        char expr[1000] = "";
-        char expr_copy[1000] = "";
-        char line[200];
+        char *expr = (char *)malloc(1000 * sizeof(char));
+        char *expr_copy = (char *)malloc(1000 * sizeof(char));
+        char *line = (char *)malloc(200 * sizeof(char));
+        
+        if (expr == NULL || expr_copy == NULL || line == NULL) {
+            printf("Memory allocation error.\n");
+            free(expr);
+            free(expr_copy);
+            free(line);
+            return;
+        }
+        
         int continuation = 0;
         
         // Reset expression for new calculation
@@ -253,8 +301,11 @@ void calculation_mode() {
         do {
             printf("Enter the calculation (press \"exit\" to exit): ");
             
-            if (fgets(line, sizeof(line), stdin) == NULL) {
+            if (fgets(line, 200, stdin) == NULL) {
                 printf("Unexpected error.\n");
+                free(expr);
+                free(expr_copy);
+                free(line);
                 return;
             }
 
@@ -263,6 +314,9 @@ void calculation_mode() {
             // Check for exit command
             trim_whitespace(line);
             if (strcmp(line, "exit") == 0) {
+                free(expr);
+                free(expr_copy);
+                free(line);
                 return; // Return to selection mode
             }
             
@@ -300,6 +354,11 @@ void calculation_mode() {
             }
         }
         
+        // Free memory for this calculation
+        free(expr);
+        free(expr_copy);
+        free(line);
+        
         printf("\n");
     }
 }
@@ -315,9 +374,15 @@ void selection_mode() {
         printf("3. Exit\n");
         printf("Enter your choice: ");
         
-        char choice[10];
-        if (fgets(choice, sizeof(choice), stdin) == NULL) {
+        char *choice = (char *)malloc(10 * sizeof(char));
+        if (choice == NULL) {
+            printf("Memory allocation error.\n");
+            continue;
+        }
+        
+        if (fgets(choice, 10, stdin) == NULL) {
             printf("Unexpected error.\n");
+            free(choice);
             continue;
         }
         
@@ -325,10 +390,13 @@ void selection_mode() {
         trim_whitespace(choice);
         
         if (strcmp(choice, "1") == 0) {
+            free(choice);
             calculation_mode();
         } else if (strcmp(choice, "2") == 0) {
+            free(choice);
             show_history();
         } else if (strcmp(choice, "3") == 0) {
+            free(choice);
             free_stack();  // Free all remaining nodes before exit
             system("clear");
             printf("Exiting calculator. History saved to %s\n", HISTORY_FILE);
@@ -338,6 +406,8 @@ void selection_mode() {
             printf("Press Enter to continue...");
             getchar();
         }
+        
+        free(choice);
     }
 }
 
