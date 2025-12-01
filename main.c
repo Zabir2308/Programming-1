@@ -57,27 +57,27 @@ void trim_whitespace(char *str) {
     }
 }
 
-// Check if string ends with '/' (ignoring whitespace)
+// Check if string ends with '\' (ignoring whitespace)
 int ends_with_continuation(char *str) {
     trim_whitespace(str);
     int len = strlen(str);
     
     if (len == 0) return 0;
     
-    // Check from end for '/'
+    // Check from end for '\'
     int i = len - 1;
-    while (i >= 0 && str[i] == '/') {
+    while (i >= 0 && str[i] == '\\') {
         i--;
     }
     
-    // If we found at least one '/', remove all of them
+    // If we found at least one '\', remove all of them
     if (i < len - 1) {
         str[i + 1] = '\0';
         trim_whitespace(str);
         
-        // If nothing remains after removing '/', treat as no input
+        // If nothing remains after removing '\', treat as no input
         if (strlen(str) == 0) {
-            return 2; // Special case: only '/' was entered
+            return 2; // Special case: only '\' was entered
         }
         return 1; // Continuation needed
     }
@@ -245,7 +245,7 @@ void calculation_mode() {
     system("clear");
     
     printf("=== Calculation Mode ===\n");
-    printf("Use '/' at the end of a line to continue on the next line\n");
+    printf("Use '\\' at the end of a line to continue on the next line\n");
     printf("Type \"exit\" to return to selection mode\n\n");
     
     while (1) {
