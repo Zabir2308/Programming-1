@@ -106,7 +106,11 @@ void save_to_history(const char *expression, long double result) {
 
 // Display last N entries from history
 void show_history() {
-    system("clear");
+    #ifdef _WIN32
+        system("cls");
+    #else
+        system("clear");
+    #endif
     
     printf("=== History ===\n");
     
@@ -175,11 +179,11 @@ int rpn_calculator(char *expr, long double *result) {
             double res;
 
             if (strcmp(token, "sin") == 0) {
-                res = sin(num1 * M_PI / 180);
+                res = sinl(num1 * M_PI / 180);
             } else if (strcmp(token, "cos") == 0) {
-                res = cos(num1 * M_PI / 180);
+                res = cosl(num1 * M_PI / 180);
             } else if (strcmp(token, "tan") == 0) {
-                res = tan(num1 * M_PI / 180);
+                res = tanl(num1 * M_PI / 180);
             }
 
             push(res);
@@ -242,7 +246,11 @@ int rpn_calculator(char *expr, long double *result) {
 
 // Calculation mode with dynamic memory allocation
 void calculation_mode() {
-    system("clear");
+    #ifdef _WIN32
+        system("cls");
+    #else
+        system("clear");
+    #endif
     
     printf("=== Calculation Mode ===\n");
     printf("Use '\\' at the end of a line to continue on the next line\n");
@@ -274,6 +282,9 @@ void calculation_mode() {
             size_t pos = 0;
             int ch;
             while ((ch = fgetc(stdin)) != '\n' && ch != EOF) {
+                // Skip carriage return (Windows compatibility)
+                if (ch == '\r') continue;
+                
                 // Check if we need to grow the buffer
                 if (pos >= line_capacity - 1) {
                     line_capacity *= 2;
@@ -377,7 +388,11 @@ void calculation_mode() {
 // Selection mode
 void selection_mode() {
     while (1) {
-        system("clear");
+        #ifdef _WIN32
+            system("cls");
+        #else
+            system("clear");
+        #endif
         
         printf("=== Selection Mode ===\n");
         printf("1. New calculation\n");
@@ -400,7 +415,11 @@ void selection_mode() {
             show_history();
         } else if (strcmp(choice, "3") == 0) {
             free_stack();  // Free all remaining nodes before exit
-            system("clear");
+            #ifdef _WIN32
+                system("cls");
+            #else
+                system("clear");
+            #endif
             printf("Exiting calculator. History saved to %s\n", HISTORY_FILE);
             exit(0);
         } else {
