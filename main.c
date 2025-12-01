@@ -12,6 +12,12 @@
 #define HISTORY_FILE "history.txt"
 #define MAX_HISTORY_DISPLAY 10
 
+// Initial buffer sizes
+#define INITIAL_LINE_SIZE 128
+#define INITIAL_EXPR_SIZE 256
+#define INITIAL_HISTORY_LINE_SIZE 512
+#define INITIAL_HISTORY_ARRAY_SIZE 16
+
 long double string_to_long_double(const char *str) {
     return strtold(str, NULL);
 }
@@ -49,6 +55,50 @@ void trim_whitespace(char *str) {
     
     // Move trimmed string to beginning
     memmove(str, start, strlen(start) + 1);
+}
+
+// Dynamic string reading function - reads a complete line and grows buffer as needed
+char* read_line_dynamic(FILE *stream, size_t initial_size) {
+    size_t capacity = initial_size;
+    size_t length = 0;
+    char *buffer = (char *)malloc(capacity);
+    
+    if (buffer == NULL) {
+        printf("Memory allocation error.\n");
+        return NULL;
+    }
+    
+    int c;
+    while ((c = fgetc(stream)) != EOF) {
+        // Check if we need more space (leave room for character + null terminator)
+        if (length + 1 >= capacity) {
+            capacity *= 2;
+            char *new_buffer = (char *)realloc(buffer, capacity);
+            if (new_buffer == NULL) {
+                printf("Memory reallocation error.\n");
+                free(buffer);
+                return NULL;
+            }
+            buffer = new_buffer;
+        }
+        
+        // Stop at newline
+        if (c == '\n') {
+            buffer[length] = '\0';
+            return buffer;
+        }
+        
+        buffer[length++] = c;
+    }
+    
+    // Handle EOF
+    if (length == 0 && c == EOF) {
+        free(buffer);
+        return NULL;
+    }
+    
+    buffer[length] = '\0';
+    return buffer;
 }
 
 // Check if string ends with '/' (ignoring whitespace)
@@ -98,7 +148,7 @@ void save_to_history(const char *expression, long double result) {
     fclose(file);
 }
 
-// Display last N entries from history
+// Display last N entries from history with dynamic memory
 void show_history() {
     system("clear");
     
@@ -108,35 +158,39 @@ void show_history() {
     if (file == NULL) {
         printf("No history available yet.\n\n");
     } else {
-        // Dynamically allocate array of string pointers
-        char **lines = (char **)malloc(1000 * sizeof(char *));
+        // Dynamic array of string pointers
+        size_t capacity = INITIAL_HISTORY_ARRAY_SIZE;
+        size_t count = 0;
+        char **lines = (char **)malloc(capacity * sizeof(char *));
+        
         if (lines == NULL) {
             printf("Memory allocation error.\n");
             fclose(file);
             return;
         }
         
-        int count = 0;
-        
-        // Read all lines
-        while (count < 1000) {
-            lines[count] = (char *)malloc(300 * sizeof(char));
-            if (lines[count] == NULL) {
-                printf("Memory allocation error.\n");
-                // Free already allocated lines
-                for (int i = 0; i < count; i++) {
-                    free(lines[i]);
+        // Read all lines dynamically
+        char *line;
+        while ((line = read_line_dynamic(file, INITIAL_HISTORY_LINE_SIZE)) != NULL) {
+            // Check if we need to grow the array
+            if (count >= capacity) {
+                capacity *= 2;
+                char **new_lines = (char **)realloc(lines, capacity * sizeof(char *));
+                if (new_lines == NULL) {
+                    printf("Memory reallocation error.\n");
+                    // Free what we have so far
+                    for (size_t i = 0; i < count; i++) {
+                        free(lines[i]);
+                    }
+                    free(lines);
+                    free(line);
+                    fclose(file);
+                    return;
                 }
-                free(lines);
-                fclose(file);
-                return;
+                lines = new_lines;
             }
             
-            if (fgets(lines[count], 300, file) == NULL) {
-                free(lines[count]);
-                break;
-            }
-            count++;
+            lines[count++] = line;
         }
         fclose(file);
         
@@ -144,15 +198,15 @@ void show_history() {
             printf("No history available yet.\n\n");
         } else {
             // Display last MAX_HISTORY_DISPLAY entries
-            int start = (count > MAX_HISTORY_DISPLAY) ? count - MAX_HISTORY_DISPLAY : 0;
-            for (int i = start; i < count; i++) {
-                printf("%s", lines[i]);
+            size_t start = (count > MAX_HISTORY_DISPLAY) ? count - MAX_HISTORY_DISPLAY : 0;
+            for (size_t i = start; i < count; i++) {
+                printf("%s\n", lines[i]);
             }
             printf("\n");
         }
         
         // Free all allocated lines
-        for (int i = 0; i < count; i++) {
+        for (size_t i = 0; i < count; i++) {
             free(lines[i]);
         }
         free(lines);
@@ -163,18 +217,12 @@ void show_history() {
         printf("1. Return\n");
         printf("Enter your choice: ");
         
-        char *choice = (char *)malloc(10 * sizeof(char));
+        char *choice = read_line_dynamic(stdin, INITIAL_LINE_SIZE);
         if (choice == NULL) {
-            printf("Memory allocation error.\n");
-            return;
-        }
-        
-        if (fgets(choice, 10, stdin) == NULL) {
-            free(choice);
+            printf("Error reading input.\n");
             continue;
         }
         
-        choice[strcspn(choice, "\n")] = '\0';
         trim_whitespace(choice);
         
         if (strcmp(choice, "1") == 0) {
@@ -272,7 +320,33 @@ int rpn_calculator(char *expr, long double *result) {
     }
 }
 
-// Calculation mode
+// Append to dynamic string with automatic growth
+int append_to_string(char **dest, size_t *capacity, const char *src) {
+    size_t dest_len = strlen(*dest);
+    size_t src_len = strlen(src);
+    size_t needed = dest_len + src_len + 2; // +2 for space and null terminator
+    
+    // Grow if needed
+    while (needed > *capacity) {
+        *capacity *= 2;
+        char *new_dest = (char *)realloc(*dest, *capacity);
+        if (new_dest == NULL) {
+            printf("Memory reallocation error.\n");
+            return 0;
+        }
+        *dest = new_dest;
+    }
+    
+    // Append with space if dest is not empty
+    if (dest_len > 0 && src_len > 0) {
+        strcat(*dest, " ");
+    }
+    strcat(*dest, src);
+    
+    return 1;
+}
+
+// Calculation mode with dynamic memory
 void calculation_mode() {
     system("clear");
     
@@ -281,42 +355,32 @@ void calculation_mode() {
     printf("Type \"exit\" to return to selection mode\n\n");
     
     while (1) {
-        char *expr = (char *)malloc(1000 * sizeof(char));
-        char *expr_copy = (char *)malloc(1000 * sizeof(char));
-        char *line = (char *)malloc(200 * sizeof(char));
+        size_t expr_capacity = INITIAL_EXPR_SIZE;
+        char *expr = (char *)malloc(expr_capacity);
         
-        if (expr == NULL || expr_copy == NULL || line == NULL) {
+        if (expr == NULL) {
             printf("Memory allocation error.\n");
-            free(expr);
-            free(expr_copy);
-            free(line);
             return;
         }
         
-        int continuation = 0;
-        
-        // Reset expression for new calculation
         expr[0] = '\0';
+        int continuation = 0;
         
         do {
             printf("Enter the calculation (press \"exit\" to exit): ");
             
-            if (fgets(line, 200, stdin) == NULL) {
-                printf("Unexpected error.\n");
+            char *line = read_line_dynamic(stdin, INITIAL_LINE_SIZE);
+            if (line == NULL) {
+                printf("Error reading input.\n");
                 free(expr);
-                free(expr_copy);
-                free(line);
                 return;
             }
-
-            line[strcspn(line, "\n")] = '\0';  // Remove newline
             
             // Check for exit command
             trim_whitespace(line);
             if (strcmp(line, "exit") == 0) {
-                free(expr);
-                free(expr_copy);
                 free(line);
+                free(expr);
                 return; // Return to selection mode
             }
             
@@ -324,23 +388,31 @@ void calculation_mode() {
             
             if (cont_status == 2) {
                 // Only '/' was entered, ignore and continue
+                free(line);
                 continue;
             }
             
-            // Append to accumulated expression with a space
-            if (strlen(expr) > 0 && strlen(line) > 0) {
-                strcat(expr, " ");
+            // Append to accumulated expression
+            if (!append_to_string(&expr, &expr_capacity, line)) {
+                free(line);
+                free(expr);
+                return;
             }
-            strcat(expr, line);
             
             continuation = cont_status;
+            free(line);
             
         } while (continuation);
 
         // Process the complete expression
         if (strlen(expr) > 0) {
             // Make a copy for history (strtok modifies the string)
-            strcpy(expr_copy, expr);
+            char *expr_copy = strdup(expr);
+            if (expr_copy == NULL) {
+                printf("Memory allocation error.\n");
+                free(expr);
+                continue;
+            }
             
             long double result;
             if (rpn_calculator(expr, &result)) {
@@ -348,22 +420,20 @@ void calculation_mode() {
                 save_to_history(expr_copy, result);
             }
             
+            free(expr_copy);
+            
             // Clear the stack for next calculation (in case of error)
             while (!isEmpty()) {
                 pop();
             }
         }
         
-        // Free memory for this calculation
         free(expr);
-        free(expr_copy);
-        free(line);
-        
         printf("\n");
     }
 }
 
-// Selection mode
+// Selection mode with dynamic memory
 void selection_mode() {
     while (1) {
         system("clear");
@@ -374,19 +444,12 @@ void selection_mode() {
         printf("3. Exit\n");
         printf("Enter your choice: ");
         
-        char *choice = (char *)malloc(10 * sizeof(char));
+        char *choice = read_line_dynamic(stdin, INITIAL_LINE_SIZE);
         if (choice == NULL) {
-            printf("Memory allocation error.\n");
+            printf("Error reading input.\n");
             continue;
         }
         
-        if (fgets(choice, 10, stdin) == NULL) {
-            printf("Unexpected error.\n");
-            free(choice);
-            continue;
-        }
-        
-        choice[strcspn(choice, "\n")] = '\0';
         trim_whitespace(choice);
         
         if (strcmp(choice, "1") == 0) {
@@ -404,7 +467,8 @@ void selection_mode() {
         } else {
             printf("Invalid choice. Please try again.\n");
             printf("Press Enter to continue...");
-            getchar();
+            char *dummy = read_line_dynamic(stdin, INITIAL_LINE_SIZE);
+            free(dummy);
         }
         
         free(choice);
