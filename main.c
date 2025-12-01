@@ -166,8 +166,13 @@ int rpn_calculator(char *expr, long double *result) {
     long double num1, num2;
     
     while (token != NULL) {
-        if (isdigit((unsigned char)token[0]) || (token[0] == '-' && isdigit((unsigned char)token[1]))) {
-            push(string_to_long_double(token));
+        // Check if token is a number (including negative and decimals)
+        char *endptr;
+        long double val = strtold(token, &endptr);
+        
+        // If entire token was consumed, it's a valid number
+        if (*endptr == '\0' && endptr != token) {
+            push(val);
         } 
         else if (strcmp(token, "sin") == 0 || strcmp(token, "cos") == 0 || strcmp(token, "tan") == 0) {
             if (isEmpty()) {
@@ -176,14 +181,14 @@ int rpn_calculator(char *expr, long double *result) {
             }
 
             num1 = pop();
-            double res;
+            long double res;
 
             if (strcmp(token, "sin") == 0) {
-                res = sinl(num1 * M_PI / 180);
+                res = sinl(num1 * M_PI / 180.0L);
             } else if (strcmp(token, "cos") == 0) {
-                res = cosl(num1 * M_PI / 180);
-            } else if (strcmp(token, "tan") == 0) {
-                res = tanl(num1 * M_PI / 180);
+                res = cosl(num1 * M_PI / 180.0L);
+            } else { // tan
+                res = tanl(num1 * M_PI / 180.0L);
             }
 
             push(res);
